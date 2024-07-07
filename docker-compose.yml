@@ -1,0 +1,135 @@
+services:
+    frontend:
+        build:
+            context: .
+            dockerfile: ./docker/frontend/Dockerfile.dev
+        depends_on:
+           - backend
+        ports:
+            - "8081:8080"
+            - "81:80"
+            - "3001:3000"
+            - "444:443"
+        volumes:
+            - ./frontend:/var/www/html
+            - ./docker/apache/frontend.conf:/etc/apache2/sites-available/000-default.conf
+            - ./docker/certs:/sslcerts
+        environment:
+            - NODE_ENV=development
+        working_dir: /var/www/html
+        entrypoint: ["/bin/sh","-c"]
+        command:
+            - |
+               yarn
+               /usr/local/bin/generate-certs.sh
+               apache2-foreground & yarn run dev -- --host
+        networks:
+            hrms_network:
+                aliases:
+                    - hrms.local
+                    - "*.hrms.local"
+
+    backend:
+        build:
+            context: .
+            dockerfile: ./docker/backend/Dockerfile
+        depends_on:
+            - db
+            - redis
+            - mailtrap
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - ./backend:/var/www/html
+            - ./docker/apache/backend.conf:/etc/apache2/sites-available/000-default.conf
+            - ./docker/php/php-ini-overrides.ini:/etc/php/8.3/apache2/conf.d/99-overrides.ini
+            - ./docker/certs:/sslcerts
+        environment:
+            - APP_ENV=local
+            - DB_HOST=db
+            - REDIS_HOST=redis
+        networks:
+            hrms_network:
+                aliases:
+                    - hrmsbe.local
+        working_dir: /var/www/html
+        entrypoint: ["/bin/sh","-c"]
+        command:
+            - |
+               /usr/local/bin/generate-certs.sh
+               composer install --no-interaction --no-scripts --no-autoloader
+               composer dump-autoload --optimize
+               apache2-foreground
+
+    db:
+        image: mysql:8.0
+        environment:
+            - MYSQL_ROOT_PASSWORD=aseftaseft
+            - MYSQL_DATABASE=backend
+            - MYSQL_USER=backend
+            - MYSQL_PASSWORD=aseftaseft
+        networks:
+            - hrms_network
+        volumes:
+            - dbdata:/var/lib/mysql
+            - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+        ports:
+            - '3306:3306'
+
+    redis:
+        image: redis:6.2-alpine
+        ports:
+            - "6379:6379"
+        environment:
+            - REDIS_PASSWORD=aseftaseft
+        networks:
+            - hrms_network
+        volumes:
+            - redisdata:/data
+            - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+        command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+
+    mailtrap:
+        image: dbck/mailtrap:latest
+        environment:
+            - TZ=Europe/Berlin
+            - MAILTRAP_USER=backend
+            - MAILTRAP_PASSWORD=aseftaseft
+        volumes:
+            - maildata:/var/mail
+        networks:
+            - hrms_network
+        ports:
+            - "9025:25"
+            - "9465:465"
+            - "9587:587"
+            - "9143:143"
+            - "9993:993"
+            - "9080:80"
+
+networks:
+    hrms_network:
+        driver: bridge
+        
+volumes:
+    dbdata:  
+        driver: local
+        driver_opts:
+            type: none
+            device: ./docker/mysql/data
+            o: bind
+
+    redisdata:
+        driver: local
+        driver_opts:
+            type: none
+            device: ./docker/redis/data
+            o: bind
+
+    maildata:
+        driver: local
+        driver_opts:
+            type: none
+            device: ./docker/mail/data
+            o: bind

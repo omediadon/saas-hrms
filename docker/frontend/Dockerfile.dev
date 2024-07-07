@@ -1,0 +1,45 @@
+# ./docker/frontend/Dockerfile.dev
+FROM php:8.3-apache
+
+# Set default shell to bash
+RUN chsh -s $(which bash)
+
+# Install Node.js and npm
+RUN curl -sL https://deb.nodesource.com/setup_20.x | bash -
+
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        git \
+        apt-transport-https \
+        wget \
+        zip \
+        openssl \
+        unzip \
+        nodejs \
+        tofrodos \
+        ssl-cert \
+        ca-certificates \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    
+RUN corepack enable && yes "y" | yarn exec env
+ 
+# Set up SSL certificates
+COPY ./docker/apache/generate-certs.sh /usr/local/bin/
+RUN fromdos /usr/local/bin/generate-certs.sh \
+    && chmod +x /usr/local/bin/generate-certs.sh
+
+# Enable Apache modules
+RUN a2enmod ssl headers rewrite && /etc/init.d/apache2 restart
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Install global npm packages
+RUN npm install -g @vue/cli
+
+# Expose port 80 and 8080
+EXPOSE 80 8080 3000
+
+# Start Apache
+CMD ["apache2-foreground"]

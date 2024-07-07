@@ -1,0 +1,14 @@
+# ./docker/frontend/Dockerfile.prod
+FROM node:16 as build-stage
+WORKDIR /app
+COPY frontend-saas/package*.json ./
+RUN npm install
+COPY frontend-saas/ .
+RUN npm run build
+
+FROM php:8.3-apache
+COPY --from=build-stage /app/dist /var/www/html/
+RUN chown -R www-data:www-data /var/www/html
+RUN a2enmod rewrite
+EXPOSE 80
+CMD ["apache2-foreground"]

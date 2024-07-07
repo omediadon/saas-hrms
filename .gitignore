@@ -1,0 +1,9 @@
+/docker/mail/*
+!/docker/mail/.gitkeep
+
+/docker/mysql/data
+
+/docker/redis/data
+
+/docker/certs/*
+!/docker/certs/.gitkeep
